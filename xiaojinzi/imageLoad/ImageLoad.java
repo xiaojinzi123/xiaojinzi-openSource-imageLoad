@@ -1,4 +1,4 @@
-package xiaojinzi.imageLoad;
+package xiaojinzi.android.image;
 
 
 import android.annotation.SuppressLint;
@@ -11,10 +11,10 @@ import android.widget.ImageView;
 
 import java.io.File;
 
-import xiaojinzi.base.android.log.L;
-import xiaojinzi.base.android.os.SystemInfo;
-import xiaojinzi.net.AsyncHttp;
-import xiaojinzi.net.adapter.BaseDataHandlerAdapter;
+import xiaojinzi.android.net.AsyncHttp;
+import xiaojinzi.android.net.adapter.BaseDataHandlerAdapter;
+import xiaojinzi.android.util.log.L;
+import xiaojinzi.android.util.os.SystemInfo;
 
 
 /**
@@ -225,7 +225,7 @@ public class ImageLoad {
      * @param isCacheToLocal   是否缓存到本地
      * @param onResultListener 回掉接口,告知使用者是否成功加载
      */
-    public void asyncLoadImage(final ImageView img, String url, final Integer defaultImageId,
+    public void asyncLoadImage(final ImageView img, final String url, final Integer defaultImageId,
                                final boolean isFitImageView, final boolean isCacheToLocal, final OnResultListener onResultListener) {
 
         // 从缓存中获取图片
@@ -237,6 +237,11 @@ public class ImageLoad {
                 L.s(TAG, "一级缓存中没有,现在检测二级缓存");
             }
 
+            //拿到地址
+            //1.可能是本地的地址
+            //2.可能是网络上的地址
+            String tmpUrl = url;
+
             //如果二级缓存有用,并且启用二级缓存,而且不是本地文件
             if (sdCardCacheManager.isEnable() && isOpenTwoLevelCache && !url.startsWith(LOCALFILEURLPREFIX)) {
                 if (isLog) {
@@ -247,25 +252,23 @@ public class ImageLoad {
                 //如果文件存在并且是一个文件
                 if (cacheFile.exists() && cacheFile.isFile()) {
                     //修改url为本地的地址
-                    url = LOCALFILEURLPREFIX + cacheFile.getPath();
+                    tmpUrl = LOCALFILEURLPREFIX + cacheFile.getPath();
                 }
             }
 
-            //拿到地址
-            //1.可能是本地的地址
-            //2.可能是网络上的地址
-            final String netUrl = url;
+            final String netUrl = tmpUrl;
 
             // 请求图片的二进制数据
-            asynHttp.get(url, AsyncHttp.BaseDataHandler.BYTEARRAYDATA, new BaseDataHandlerAdapter() {
+            asynHttp.get(netUrl, AsyncHttp.BaseDataHandler.BYTEARRAYDATA, new BaseDataHandlerAdapter() {
 
                 @Override
                 public void handler(byte[] bt) { //如果请求图片成功,不仅要放在一级缓存中,还要放在二级缓存中
-                    //设置图片,并且放入了一级缓存中
-                    setImage(bt, img, netUrl, isFitImageView);
+                    //设置图片,并且放入了一级缓存中,url不能传错了,是最开始的那个
+                    setImage(bt, img, url, isFitImageView);
                     if (onResultListener != null) {
                         onResultListener.onResult(true);
                     }
+                    //如果sk卡可用,并且要缓存,打开了二级缓存
                     if (sdCardCacheManager.isEnable() && isCacheToLocal && isOpenTwoLevelCache && !netUrl.startsWith(LOCALFILEURLPREFIX)) {
                         sdCardCacheManager.cacheImage(bt, netUrl);
                     }
