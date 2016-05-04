@@ -9,6 +9,8 @@ import android.graphics.BitmapFactory;
 import android.support.v4.util.LruCache;
 import android.widget.ImageView;
 
+import java.io.File;
+
 import xiaojinzi.base.android.log.L;
 import xiaojinzi.base.android.os.SystemInfo;
 import xiaojinzi.net.AsyncHttp;
@@ -59,6 +61,11 @@ public class ImageLoad {
      * 控制是否打印
      */
     private static final boolean isLog = false;
+
+    /**
+     * 本地文件的前缀标识
+     */
+    public static final String LOCALFILEURLPREFIX = "file:";
 
     // 创建缓存对象,对图片进行缓存的,一级缓存
     private LruCache<String, Bitmap> mCache;
@@ -218,7 +225,7 @@ public class ImageLoad {
      * @param isCacheToLocal   是否缓存到本地
      * @param onResultListener 回掉接口,告知使用者是否成功加载
      */
-    public void asyncLoadImage(final ImageView img, final String url, final Integer defaultImageId,
+    public void asyncLoadImage(final ImageView img, String url, final Integer defaultImageId,
                                final boolean isFitImageView, final boolean isCacheToLocal, final OnResultListener onResultListener) {
 
         // 从缓存中获取图片
@@ -230,43 +237,37 @@ public class ImageLoad {
                 L.s(TAG, "一级缓存中没有,现在检测二级缓存");
             }
 
-            //如果二级缓存有用
-            if (sdCardCacheManager.isEnable() && isOpenTwoLevelCache) {
+            //如果二级缓存有用,并且启用二级缓存,而且不是本地文件
+            if (sdCardCacheManager.isEnable() && isOpenTwoLevelCache && !url.startsWith(LOCALFILEURLPREFIX)) {
                 if (isLog) {
                     L.s(TAG, "二级缓存功能可用");
                 }
-                byte[] cacheImage = sdCardCacheManager.getCacheImage(url);
-                if (cacheImage != null) {
-                    if (isLog) {
-                        L.s(TAG, "二级缓存里面有图片资源,省去了网络访问");
-                    }
-                    setImage(cacheImage, img, url, isFitImageView);
-                    if (onResultListener != null) {
-                        onResultListener.onResult(true);
-                    }
-                    return;
-                } else {
-                    if (isLog) {
-                        L.s(TAG, "二级缓存中没有,准备去网络请求了");
-                    }
-                }
-            } else {
-                if (isLog) {
-                    L.s(TAG, "二级缓存功能不可用");
+                //获取这个url对应的文件对象
+                File cacheFile = sdCardCacheManager.getCacheFile(url);
+                //如果文件存在并且是一个文件
+                if (cacheFile.exists() && cacheFile.isFile()) {
+                    //修改url为本地的地址
+                    url = LOCALFILEURLPREFIX + cacheFile.getPath();
                 }
             }
+
+            //拿到地址
+            //1.可能是本地的地址
+            //2.可能是网络上的地址
+            final String netUrl = url;
 
             // 请求图片的二进制数据
             asynHttp.get(url, AsyncHttp.BaseDataHandler.BYTEARRAYDATA, new BaseDataHandlerAdapter() {
 
                 @Override
                 public void handler(byte[] bt) { //如果请求图片成功,不仅要放在一级缓存中,还要放在二级缓存中
-                    setImage(bt, img, url, isFitImageView);
+                    //设置图片,并且放入了一级缓存中
+                    setImage(bt, img, netUrl, isFitImageView);
                     if (onResultListener != null) {
                         onResultListener.onResult(true);
                     }
-                    if (sdCardCacheManager.isEnable() && isCacheToLocal && isOpenTwoLevelCache) {
-                        sdCardCacheManager.cacheImage(bt, url);
+                    if (sdCardCacheManager.isEnable() && isCacheToLocal && isOpenTwoLevelCache && !netUrl.startsWith(LOCALFILEURLPREFIX)) {
+                        sdCardCacheManager.cacheImage(bt, netUrl);
                     }
                 }
 
@@ -315,7 +316,17 @@ public class ImageLoad {
      * @param isFitImageView 是否适应控件大小
      */
     private void setImage(byte[] bt, ImageView img, String url, final boolean isFitImageView) {
-        // 对字节数组进行转化
+
+//        // 第一次解析将inJustDecodeBounds设置为true，来获取图片大小
+//        final BitmapFactory.Options options = new BitmapFactory.Options();
+//        options.inJustDecodeBounds = true;
+//        BitmapFactory.decodeByteArray(bt, 0, bt.length, options);
+//        // 调用上面定义的方法计算inSampleSize值
+//        options.inSampleSize = calculateInSampleSize(options, img.getMeasuredWidth(),
+//                img.getMeasuredHeight());
+//        // 使用获取到的inSampleSize值再次解析图片
+//        options.inJustDecodeBounds = false;
+//        Bitmap bitmap = BitmapFactory.decodeByteArray(bt, 0, bt.length, options);
         Bitmap bitmap = BitmapFactory.decodeByteArray(bt, 0, bt.length);
 
         // 如果图片要适应ImageView控件,转化图片的大小
@@ -330,6 +341,30 @@ public class ImageLoad {
         // 设置imageView控件的图片
         img.setImageBitmap(bitmap);
 
+    }
+
+    /**
+     * 计算inSampleSize，用于压缩图片
+     *
+     * @param options
+     * @param reqWidth
+     * @param reqHeight
+     * @return
+     */
+    private int calculateInSampleSize(BitmapFactory.Options options,
+                                      int reqWidth, int reqHeight) {
+        // 源图片的宽度
+        int width = options.outWidth;
+        int height = options.outHeight;
+        int inSampleSize = 1;
+
+        if (width > reqWidth && height > reqHeight) {
+            // 计算出实际宽度和目标宽度的比率
+            int widthRatio = Math.round((float) width / (float) reqWidth);
+            int heightRatio = Math.round((float) width / (float) reqWidth);
+            inSampleSize = Math.max(widthRatio, heightRatio);
+        }
+        return inSampleSize;
     }
 
     /**
