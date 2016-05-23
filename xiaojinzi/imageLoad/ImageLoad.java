@@ -1,4 +1,4 @@
-package xiaojinzi.android.image;
+package xiaojinzi.imageLoad;
 
 
 import android.annotation.SuppressLint;
@@ -11,10 +11,10 @@ import android.widget.ImageView;
 
 import java.io.File;
 
-import xiaojinzi.android.net.AsyncHttp;
-import xiaojinzi.android.net.adapter.BaseDataHandlerAdapter;
-import xiaojinzi.android.util.log.L;
-import xiaojinzi.android.util.os.SystemInfo;
+import xiaojinzi.base.android.log.L;
+import xiaojinzi.base.android.os.SystemInfo;
+import xiaojinzi.net.AsyncHttp;
+import xiaojinzi.net.adapter.BaseDataHandlerAdapter;
 
 
 /**
